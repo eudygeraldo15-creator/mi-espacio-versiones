@@ -1,0 +1,39 @@
+name: Copia alternativa instalador MI ESPACIO 0.2.28
+on:
+  push:
+    paths:
+      - ".github/workflows/mirror-installer-single-link.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Descargar instalador publicado y verificar integridad
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLSs --retry 3 --retry-delay 5 -o MI_ESPACIO_Instalador.exe 'https://github.com/eudygeraldo15-creator/mi-espacio-versiones/releases/download/v0.2.28/MI_ESPACIO_Instalador.exe'
+          printf '%s  %s\n' '058eead4652abb2b4c9bda7317badb80b39cb733b4e384471989c42599debc30' 'MI_ESPACIO_Instalador.exe' | sha256sum -c -
+          test "$(stat -c %s MI_ESPACIO_Instalador.exe)" = "492724436"
+      - name: Subir un unico EXE al alojamiento alternativo
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLSs --retry 2 --retry-delay 10 --max-time 2100 -F "file=@MI_ESPACIO_Instalador.exe;type=application/octet-stream" 'https://upload.gofile.is/uploadfile' -o upload.json
+          python3 - <<'PY'
+          import json, os
+          with open('upload.json',encoding='utf-8') as f: p=json.load(f)
+          print('Subida:',p.get('status'))
+          if p.get('status') != 'ok': raise SystemExit('La subida no se confirmo: '+str(p.get('status')))
+          d=p.get('data') or {}
+          if int(d.get('size',0)) != 492724436: raise SystemExit('Tamano incorrecto en destino')
+          link=d.get('downloadPage')
+          if not link or not link.startswith('https://gofile.is/d/'): raise SystemExit('No se obtuvo URL de descarga')
+          print('ENLACE_ALTERNATIVO_VERIFICADO='+link)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as out: out.write('Instalador completo 0.2.28, SHA-256 verificado en origen.\n\n[Descargar MI ESPACIO]('+link+')\n')
+          PY
